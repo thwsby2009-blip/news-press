@@ -1,4 +1,4 @@
-# 寰宇日報 news-press
+# 每日新聞 news-press
 
 把 Google 新聞、Yahoo 新聞等大網站的即時新聞，自動彙整成一份傳統報紙版面，並可匯出成 PDF。
 

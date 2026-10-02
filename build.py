@@ -18,7 +18,7 @@ OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 
 def build(section_ids=None, per_section=10, want_html=False, out=None):
     sections, total = collect(section_ids, per_section=per_section)
-    paper = "寰宇日報"
+    paper = "每日新聞"
     html = build_html(paper, sections)
     os.makedirs(OUT_DIR, exist_ok=True)
     if out is None:

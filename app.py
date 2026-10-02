@@ -17,10 +17,10 @@ from news import SECTIONS, collect, roc_date, weekday_cn  # noqa: E402
 from render import build_html  # noqa: E402
 from pdf import html_to_pdf  # noqa: E402
 
-st.set_page_config(page_title="寰宇日報", page_icon="📰",
+st.set_page_config(page_title="每日新聞", page_icon="📰",
                    layout="wide", initial_sidebar_state="collapsed")
 
-PAPER = "寰宇日報"
+PAPER = "每日新聞"
 
 # 隱藏 Streamlit 介面，讓報紙成為頁面本身
 st.markdown("""
@@ -41,7 +41,7 @@ st.markdown(
     <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
                 padding:2px 0 6px;border-bottom:3px solid #14100b;">
       <span style="font-family:'Noto Serif TC',serif;font-weight:900;font-size:28px;
-                   letter-spacing:.12em;color:#14100b;">寰宇日報</span>
+                   letter-spacing:.12em;color:#14100b;">每日新聞</span>
       <span style="font-size:12.5px;color:#5c5344;letter-spacing:.15em;">
         {roc_date()}　星期{weekday_cn()}</span>
       <span style="font-size:11.5px;color:#8a8070;letter-spacing:.1em;margin-left:auto;">
@@ -83,7 +83,7 @@ if do_build:
 # ── 報紙即頁面（iframe 填滿）＋ PDF 下載 ────────────
 if st.session_state.result:
     html, total = st.session_state.result
-    out_name = f"寰宇日報-{roc_date()}.pdf"
+    out_name = f"每日新聞-{roc_date()}.pdf"
 
     with tempfile.TemporaryDirectory() as td:
         p = os.path.join(td, "paper.pdf")
