@@ -2,11 +2,15 @@
 """PDF 匯出 — WeasyPrint。"""
 import sys
 
-from weasyprint import HTML
+def pdf_bytes(html: str) -> bytes:
+    # 延遲載入：缺少原生 PDF 套件時仍可正常閱報。
+    from weasyprint import HTML
+    return HTML(string=html).write_pdf()
 
 
 def html_to_pdf(html: str, out_path: str) -> str:
-    HTML(string=html, base_url=".").write_pdf(out_path)
+    with open(out_path, "wb") as output:
+        output.write(pdf_bytes(html))
     return out_path
 
 

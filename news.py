@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """新聞來源設定與抓取 — RSS 為主，官方來源，不易被鎖。"""
 import re
+from concurrent.futures import ThreadPoolExecutor
 import email.utils
 from datetime import datetime, timezone, timedelta
 
@@ -83,8 +84,11 @@ def fetch_feed(url: str, timeout: int = 15) -> list[dict]:
                 dt = dt.astimezone(TPE)
             except Exception:
                 dt = None
-        items.append({"title": title, "link": link, "source": "",
-                      "time": dt.strftime("%H:%M") if dt else ""})
+        publisher = (it.findtext("source") or "").strip()
+        if publisher and title.endswith(" - " + publisher):
+            title = title[:-(len(publisher) + 3)]
+        items.append({"title": title, "link": link, "source": publisher,
+                      "time": dt.strftime("%m/%d %H:%M") if dt else ""})
     return items
 
 
@@ -99,18 +103,22 @@ def collect(section_ids: list[str] | None = None, per_section: int = 10,
     """抓全部版組，回傳 ([{id, name, items}], 總則數)。跨版組去重。"""
     fetch = fetch_fn or fetch_feed
     want = [s for s in SECTIONS if not section_ids or s["id"] in section_ids]
+    # 同時等待各來源，維持原來的來源排序與去重優先順序。
+    def load(url):
+        try:
+            return fetch(url)
+        except Exception:
+            return []
+
+    urls = list(dict.fromkeys(url for sec in want for _, url in sec["feeds"]))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        fetched = dict(zip(urls, pool.map(load, urls)))
     seen: set[str] = set()
     out, total = [], 0
     for sec in want:
         raw: list[dict] = []
         for src_name, url in sec["feeds"]:
-            try:
-                got = fetch(url)
-            except Exception:
-                got = []
-            for it in got:
-                it["source"] = src_name
-            raw.extend(got)
+            raw.extend({**it, "source": it.get("source") or src_name, "feed_source": src_name} for it in fetched[url])
         items = []
         for it in raw:
             key = normalize_title(it["title"])
@@ -118,7 +126,8 @@ def collect(section_ids: list[str] | None = None, per_section: int = 10,
                 continue
             seen.add(key)
             items.append(it)
-        items = items[:per_section]
+            if len(items) >= per_section:
+                break
         total += len(items)
         out.append({"id": sec["id"], "name": sec["name"], "items": items})
     return out, total

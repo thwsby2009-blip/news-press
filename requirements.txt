@@ -1,2 +1,5 @@
-streamlit>=1.30
+streamlit>=1.40,<2
 weasyprint>=60
+trafilatura>=2.0,<3
+googlenewsdecoder==0.2.1
+httpx>=0.28,<1
