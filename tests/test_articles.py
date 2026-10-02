@@ -23,6 +23,13 @@ class FullText(unittest.TestCase):
     def test_short_body_is_not_passed_off_as_article(self):
         with self.assertRaises(ArticleUnavailable):
             extract_article('<article>請登入</article>', 'https://example.com/story')
+    def test_bytes_with_meta_big5_decodes_and_utf8_default(self):
+        # latin-1 誤判會讓「不」(UTF-8: E4 B8 8D) 變成 "ä¸"——位元組級亂碼的特徵
+        utf8_bytes = '不滿罷工決定無限期罷工，這是足夠長的正文內容用來測試編碼處理是否正確，超過一百六十字元的最低門檻以避免被判定為不足，正文來自記者實際採訪與工會會員臨時投票的現場記錄，保留完整的段落與標點符號。' + '正文段落繼續延伸，確保測試通過長度檢查，並且保留完整段落不截斷，驗證位元組層級的編碼正確性，公司代表晚間召開臨時會員大會原訂的投票結果維持不變，勞資雙方後續將再進行協商。'
+        raw = ('<html><head><meta charset="utf-8"></head><body><article><p>' + utf8_bytes + '</p></article></body></html>').encode('utf-8')
+        result = extract_article(raw, "https://example.com/story")
+        self.assertTrue(any('不滿罷工' in p for p in result["paragraphs"]))
+        self.assertNotIn('ä¸', "".join(result["paragraphs"]))
     def test_private_url_rejected(self):
         with patch('articles.socket.getaddrinfo', return_value=[(2, 1, 6, '', ('127.0.0.1', 443))]):
             with self.assertRaises(ArticleUnavailable):

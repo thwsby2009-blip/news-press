@@ -1,14 +1,16 @@
 """擷取公開文章正文，不執行來源腳本、不移除付費牆。"""
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
+import codecs
 import ipaddress
 import json
+import re
 import socket
 from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
-from lxml import html as lxml_html
+from lxml import etree, html as lxml_html
 from trafilatura import extract
 
 AGENT = "NewsPress/1.0"
@@ -94,8 +96,29 @@ def restricted(data):
         return any(restricted(value) for value in data)
     return False
 
+def _html_parser(raw: bytes):
+    """bytes 一定要明確指定編碼解析：lxml 自動偵測在部分網站（ltn/ettoday/cna）
+    誤判成 latin-1，會讓正文變成位元組級亂碼。meta 宣告優先，預設 utf-8。"""
+    encodings = []
+    meta = re.search(rb"""<meta[^>]*charset=["']?([A-Za-z0-9_-]+)""", raw[:3000])
+    if meta:
+        try:
+            encodings.append(codecs.lookup(meta.group(1).decode("ascii", "ignore")).name)
+        except Exception:
+            pass
+    encodings.append("utf-8")
+    for enc in dict.fromkeys(encodings):
+        try:
+            tree = etree.fromstring(raw, etree.HTMLParser(encoding=enc, recover=True))
+            if tree is not None:
+                return tree
+        except Exception:
+            continue
+    return lxml_html.fromstring(raw)
+
+
 def extract_article(raw, url):
-    tree = lxml_html.fromstring(raw)
+    tree = _html_parser(raw) if isinstance(raw, bytes) else lxml_html.fromstring(raw)
     for value in tree.xpath('//script[@type="application/ld+json"]/text()'):
         try:
             if restricted(json.loads(value)):
