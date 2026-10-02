@@ -9,7 +9,7 @@ CSS = """
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: 'Noto Serif TC', 'Times New Roman', serif;
+  font-family: 'Noto Serif TC', 'Noto Serif CJK TC', 'Times New Roman', serif;
   color: #1a1611;
   background: #3a372f;
 }
