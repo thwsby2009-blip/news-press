@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-"""新聞日報 — Streamlit 網頁。
+"""新聞日報 — Streamlit 網頁（閱讀版面 + PDF 下載）。
 
 本機執行：streamlit run app.py
 Streamlit Cloud：repo 上傳後於 streamlit.io/cloud 選 repo/branch/main/app.py
 """
-import base64
 import os
 import sys
+import tempfile
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -39,7 +40,7 @@ st.markdown(
     """,
     unsafe_allow_html=True)
 
-st.caption("勾選版組 → 產生今日報紙 → 下載 PDF。新聞來源：Google 新聞、Yahoo 新聞官方 RSS。")
+st.caption("勾選版組 → 產生今日報紙 → 網頁直接閱讀、可下載 PDF。來源：Google 新聞、Yahoo 新聞官方 RSS。")
 
 cols = st.columns(len(SECTIONS))
 for c, s in zip(cols, SECTIONS):
@@ -71,14 +72,21 @@ if st.session_state.result:
     out_name = f"寰宇日報-{roc_date()}.pdf"
     st.success(f"完成：{total} 則新聞")
 
-    # WeasyPrint 產生 PDF（位元組串流直接下載）
-    pdf_bytes = html_to_pdf(html, out_name + ".tmp") and open(out_name + ".tmp", "rb").read()
-    if os.path.exists(out_name + ".tmp"):
-        os.remove(out_name + ".tmp")
+    # PDF（暫存檔產生 → 位元組串流下載）
+    with tempfile.TemporaryDirectory() as td:
+        pdf_bytes = html_to_pdf(html, os.path.join(td, "paper.pdf")) and None
+        if pdf_bytes is None:
+            with open(os.path.join(td, "paper.pdf"), "rb") as f:
+                pdf_bytes = f.read()
 
-    st.download_button(
+    dl, spacer = st.columns([1, 1])
+    dl.download_button(
         "⬇️ 下載 PDF",
         data=pdf_bytes,
         file_name=out_name,
         mime="application/pdf",
         use_container_width=True)
+
+    # 閱讀版面：報紙直接嵌在網頁（iframe 內完整排版，可捲動）
+    st.markdown("##### 📖 閱讀版面")
+    components.html(html, height=900, scrolling=True)
