@@ -16,16 +16,27 @@ def masthead(date, weekday):
     return (f'<header class="masthead"><div class="mast-top"><span>獨立閱讀，自由視野</span><span>{escape(date)} · 星期{escape(weekday)}</span><span>TAIPEI EDITION</span></div>'
             '<div class="mast-center"><span class="mast-side">每一天<br>都值得好好讀</span><div><h1>每日新聞<span class="seal">閱</span></h1><p>THE DAILY PRESS</p></div><span class="mast-side right">一份報紙<br>看見更大的世界</span></div><div class="mast-bottom">留一點時間，讀懂世界。</div></header>')
 
-def article_html(item, *, lead=False, index=None):
+def article_html(item, *, lead=False, index=None, bilingual=False):
     title = escape(str(item.get("title", "")))
+    title_zh = escape(str(item.get("title_zh") or "")) if bilingual else ""
     href = safe_link(item.get("original_url") or item.get("link"))
     source = escape(str(item.get("source") or "新聞來源"))
     date = escape(str(item.get("time") or ""))
     author = escape(str(item.get("author") or ""))
     origin = f'<a href="{href}" target="_blank" rel="noopener noreferrer">來源：{source}</a>' if href else f'來源：{source}'
     paragraphs = item.get("paragraphs") or []
+    zh_paragraphs = (item.get("paragraphs_zh") or []) if bilingual else []
     if paragraphs:
-        body = '<div class="article-body">' + ''.join(f'<p>{escape(str(p))}</p>' for p in paragraphs) + '</div>'
+        parts = []
+        for i, p in enumerate(paragraphs):
+            zh = zh_paragraphs[i] if i < len(zh_paragraphs) else ""
+            part = f'<p>{escape(str(p))}</p>'
+            if zh:
+                part += f'<p class="zh-line">{escape(zh)}</p>'
+            parts.append(part)
+        body = '<div class="article-body">' + ''.join(parts) + '</div>'
+        if title_zh:
+            body += f'<p class="title-zh-line">譯：{title_zh}</p>'
     else:
         reason = escape(str(item.get("content_error") or "尚未取得文章正文"))
         body = f'<div class="article-unavailable">本篇正文未收錄 · {reason}。此處僅保留報導標題。</div>'
@@ -41,14 +52,14 @@ def paginate_sections(sections, per_page=2):
     return pages
 
 
-def reader_html(sections, large=False):
+def reader_html(sections, large=False, bilingual=False):
     parts = [f'<main class="reader newspaper {"large-type" if large else ""}">']
     for section in sections:
         if not section["items"]:
             continue
         parts.append(f'<section class="paper-section"><div class="section-heading"><h2>{escape(section["name"])}版</h2><span>THE DAILY PRESS</span></div>')
         for index, item in enumerate(section["items"]):
-            parts.append(article_html(item, lead=(index == 0)))
+            parts.append(article_html(item, lead=(index == 0), bilingual=bilingual))
         parts.append('</section>')
     return ''.join(parts) + '</main>'
 
@@ -115,6 +126,8 @@ READER_CSS += """
 .article-body p {font:inherit;line-height:inherit;margin:0 0 1em;text-indent:2em;orphans:3;widows:3}
 .article-body p:first-child {text-indent:0}.article-body p:first-child::first-letter{font-size:2.3em;float:left;line-height:1.3;margin:0 5px 0 0;color:var(--accent)}
 .article-unavailable {padding:22px;background:#eeeee6;color:var(--muted);font-size:14px;line-height:1.8}
+.zh-line {font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif!important;font-size:.82em;line-height:1.75;color:var(--muted);text-indent:0!important;margin:0 0 1em!important;border-left:2px solid var(--line);padding-left:10px}
+.title-zh-line {font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;font-size:13px;color:var(--muted);margin:18px 0 0;text-align:right}
 .large-type .article-body {font-size:21px}.large-type .newspaper-article h2 {font-size:38px!important}
 @media(max-width:900px){.article-body{columns:2;column-gap:24px}}
 @media(max-width:600px){.article-body{columns:1;font-size:18px}.newspaper-article h2,.lead-article h2{font-size:27px!important}.large-type .newspaper-article h2{font-size:32px!important}.newspaper-article{padding:22px 0}}

@@ -147,5 +147,49 @@ class Prebuilt(unittest.TestCase):
             self.assertEqual(app.session_state["edition"]["total"], loaded["total"])
             self.assertTrue(any("預產" in m.value for m in app.caption))
 
+class Bilingual(unittest.TestCase):
+    def _en_item(self):
+        return {"title": "UK diesel price hits all time high", "source": "BBC 新聞", "time": "08:30",
+                "link": "https://www.bbc.com/news/1", "paragraphs": [
+                    "The United Kingdom diesel price reached a record level this week after new sanctions took effect, and drivers across the country faced higher costs at the pump.",
+                    "Ministers said the measures were necessary, but motoring groups warned that households would feel the pressure for months to come."],
+                "content_status": "ready",
+                "paragraphs_zh": ["英國柴油價格本週在新制裁生效後達到創紀錄水準，全國駕駛人在加油站面臨更高成本。",
+                                  "部長們表示這些措施是必要的，但汽車團體警告家庭將在未來幾個月感受到壓力。"],
+                "title_zh": "英國柴油價格創歷史新高"}
+    def test_bilingual_render_and_toggle_off(self):
+        from ui import article_html
+        item = self._en_item()
+        html = article_html(item, bilingual=True)
+        self.assertIn('class="zh-line"', html)
+        self.assertIn("英國柴油價格本週", html)
+        self.assertIn("The United Kingdom diesel price", html)
+        self.assertIn("譯：英國柴油價格創歷史新高", html)
+        plain = article_html(item, bilingual=False)
+        self.assertNotIn("zh-line", plain)
+        self.assertIn("The United Kingdom diesel price", plain)
+    def test_translation_failure_falls_back_to_english_only(self):
+        import translate
+        item = self._en_item()
+        del item["paragraphs_zh"]
+        del item["title_zh"]
+        with patch("translate._gtx", side_effect=RuntimeError("network down")):
+            result = translate.translate_item(item)
+        self.assertNotIn("paragraphs_zh", result)
+        self.assertEqual(result["paragraphs"][0][:10], "The United")
+    def test_translate_sections_only_english(self):
+        import translate
+        sections = [{"id": "top", "name": "頭條", "items": [dict(self._en_item())]},
+                    {"id": "en_top", "name": "英文·頭條", "items": [dict(self._en_item())]}]
+        for s in sections:
+            for it in s["items"]:
+                it.pop("paragraphs_zh", None)
+                it.pop("title_zh", None)
+        with patch("translate._gtx", return_value="繁中譯文") as gtx:
+            result = translate.translate_sections(sections)
+        # 中文版組的項目不送翻譯：只翻 en_ 版組的 1 篇（2 段＋標題）
+        self.assertEqual(gtx.call_count, 3)
+        self.assertIsNone(result[0]["items"][0].get("paragraphs_zh"))
+
 if __name__ == "__main__":
     unittest.main()

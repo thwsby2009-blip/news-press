@@ -22,6 +22,8 @@ def build(section_ids=None, per_section=10, want_html=False, out=None, want_json
     sections, total = collect(section_ids, per_section=per_section)
     from articles import enrich_sections
     sections = enrich_sections(sections)
+    from translate import translate_sections
+    sections = translate_sections(sections)
     os.makedirs(OUT_DIR, exist_ok=True)
     if want_json:
         from datetime import datetime, timezone, timedelta

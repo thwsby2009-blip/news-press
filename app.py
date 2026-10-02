@@ -7,6 +7,7 @@ from render import build_html
 from ui import STYLE, masthead, reader_html, paginate_sections
 from articles import enrich_sections, fetch_article
 from prebuilt import load_today
+from translate import translate_sections
 
 @st.cache_data(ttl=3600, max_entries=256, show_spinner=False)
 def cached_article(url):
@@ -65,6 +66,14 @@ if refresh or (not st.session_state.attempted and st.session_state.edition is No
                             progress=lambda done, total: progress.progress(done / total, text=f"已整理 {done} / {total} 篇原文"))
                     finally:
                         progress.empty()
+                    if any(s["id"].startswith("en_") for s in sections):
+                        with st.spinner("正在翻譯英文版組為繁體中文…"):
+                            progress = st.progress(0, text="正在翻譯…")
+                            try:
+                                sections = translate_sections(sections,
+                                    progress=lambda done, total: progress.progress(done / total, text=f"已翻譯 {done} / {total} 篇英文報導"))
+                            finally:
+                                progress.empty()
                     issued = datetime.now(TPE)
                     st.session_state.edition = {"sections": sections, "total": total, "issued": issued}
                     st.session_state.pdf_bytes = None
@@ -89,6 +98,7 @@ if edition:
     with st.expander("閱讀工具 · 搜尋、字級與下載"):
         query = st.text_input("搜尋本期", placeholder="搜尋標題、來源或內文…", key="query", on_change=reset_page)
         large = st.toggle("放大字級")
+        bilingual = st.toggle("英文雙語（繁中對照）", value=True)
         make_pdf = st.button("匯出本期 PDF ↓")
     if make_pdf and st.session_state.pdf_bytes is None:
         with st.spinner("正在製作適合列印的報紙…"):
@@ -115,7 +125,7 @@ if edition:
         previous.button("← 上一版", disabled=page == 0, on_click=turn_page, args=(-1,), use_container_width=True)
         position.markdown(f'<div style="text-align:center;font-size:14px">{pages[page]["name"]}版　·　第 {page + 1} / {len(pages)} 版</div>', unsafe_allow_html=True)
         following.button("下一版 →", disabled=page == len(pages) - 1, on_click=turn_page, args=(1,), use_container_width=True)
-        st.markdown(reader_html([pages[page]], large=large), unsafe_allow_html=True)
+        st.markdown(reader_html([pages[page]], large=large, bilingual=bilingual), unsafe_allow_html=True)
         st.caption(f"第 {page + 1} 版完 · 每篇保留擷取到的全部正文段落")
         st.button("繼續讀下一版 →", disabled=page == len(pages) - 1, on_click=turn_page, args=(1,))
     else:
