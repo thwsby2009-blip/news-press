@@ -80,8 +80,7 @@ article .desc {
 
 a { color: inherit; text-decoration: none; }
 h1 a, h2 a, h3 a { display: block; }
-h3 a:hover { color: #7a2c14; }
-h2 a:hover { color: #7a2c14; }
+h3 a:hover, h2 a:hover { color: #7a2c14; }
 
 .foot {
   margin-top: 34px; padding-top: 10px;
@@ -126,6 +125,13 @@ HTML_SHELL = """<!DOCTYPE html>
 </html>"""
 
 
+def _esc(s: str) -> str:
+    s = s.replace(chr(38), chr(38) + 'amp;')
+    s = s.replace(chr(60), chr(38) + 'lt;')
+    s = s.replace(chr(62), chr(38) + 'gt;')
+    return s.replace(chr(34), chr(38) + 'quot;')
+
+
 def build_html(paper: str, sections: list[dict]) -> str:
     # 頭條 = 頭條版組第一則，先抽出放大（避免之後重複出現在版組）
     hero_html = ""
@@ -136,8 +142,8 @@ def build_html(paper: str, sections: list[dict]) -> str:
         sections = [top] + list(sections[1:])
         hero_html = (
             '<div class="hero"><span class="hero-tag">頭條</span>'
-            f'<h2><a href="{lead["link"]}">{lead["title"]}</a></h2>'
-            f'<p class="meta">{lead["source"]}'
+            f'<h2><a href="{_esc(lead["link"])}" target="_blank" rel="noopener">{_esc(lead["title"])}</a></h2>'
+            f'<p class="meta">{_esc(lead["source"])}'
             + (f' ｜ {lead["time"]}' if lead["time"] else "")
             + '</p></div>')
 
@@ -149,8 +155,8 @@ def build_html(paper: str, sections: list[dict]) -> str:
         for it in sec["items"]:
             desc = f'<p class="desc">{it["desc"]}</p>' if it.get("desc") else ""
             arts.append(
-                f'<article><h3><a href="{it["link"]}">{it["title"]}</a></h3>'
-                f'<p class="meta">{it["source"]}'
+                f'<article><h3><a href="{_esc(it["link"])}" target="_blank" rel="noopener">{_esc(it["title"])}</a></h3>'
+                f'<p class="meta">{_esc(it["source"])}'
                 + (f' ｜ {it["time"]}' if it["time"] else "")
                 + f'</p>{desc}</article>')
         d_parts.append(
