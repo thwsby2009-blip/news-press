@@ -40,6 +40,21 @@ SECTIONS = [
         ("Google 新聞", "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=zh-TW&gl=TW&ceid=TW:zh-Hant"),
         ("Yahoo 新聞",  "https://tw.news.yahoo.com/rss/sports"),
     ]},
+    # 英文版組（學習用）：BBC／衛報／NPR 官方 RSS，robots 允許自動擷取
+    {"id": "en_top",   "name": "英文·頭條", "feeds": [
+        ("BBC 新聞", "https://feeds.bbci.co.uk/news/rss.xml"),
+        ("NPR 新聞", "https://feeds.npr.org/1001/rss.xml"),
+    ]},
+    {"id": "en_world", "name": "英文·國際", "feeds": [
+        ("BBC 新聞", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+        ("衛報",     "https://www.theguardian.com/world/rss"),
+    ]},
+    {"id": "en_biz",   "name": "英文·財經", "feeds": [
+        ("BBC 新聞", "https://feeds.bbci.co.uk/news/business/rss.xml"),
+    ]},
+    {"id": "en_tech",  "name": "英文·科技", "feeds": [
+        ("BBC 新聞", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
+    ]},
 ]
 
 _CTX = ssl.create_default_context()

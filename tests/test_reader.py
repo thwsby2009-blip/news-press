@@ -69,7 +69,7 @@ class AppFlows(unittest.TestCase):
         self.assertTrue(self.app.warning)
         self.assertEqual(self.mock.call_count, 1)
         self.button("選取全部版組").click().run()
-        self.assertEqual(len(self.app.multiselect[0].value), 6)
+        self.assertEqual(len(self.app.multiselect[0].value), 10)
         self.assertFalse(self.app.exception)
     def test_category_filter(self):
         self.app.get("button_group")[0].set_value("科技").run()
