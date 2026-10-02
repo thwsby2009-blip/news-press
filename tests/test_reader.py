@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 from datetime import datetime
 from html.parser import HTMLParser
@@ -46,6 +48,7 @@ class AppFlows(unittest.TestCase):
         from streamlit.testing.v1 import AppTest
         self.mock = patch("news.collect", return_value=(fixture(), 20)).start()
         patch("articles.enrich_sections", side_effect=lambda sections, **kwargs: sections).start()
+        patch("prebuilt.load_today", return_value=None).start()
         self.addCleanup(patch.stopall)
         self.app = AppTest.from_file("../app.py").run(timeout=15)
         self.assertEqual(len(self.app.exception), 0)
@@ -106,6 +109,43 @@ class AppFlows(unittest.TestCase):
         self.assertIn("正文識別碼tech9", reader)
         self.assertNotIn("正文識別碼tech8", reader)
         self.assertEqual(self.mock.call_count, 1)
+
+class Prebuilt(unittest.TestCase):
+    def _edition(self):
+        sections, total = collect(["top"], per_section=2, fetch_fn=lambda url: [
+            {"title": "預產測試", "link": "https://example.com/pre", "source": "", "time": ""}])
+        for s in sections:
+            for it in s["items"]:
+                it.update({"paragraphs": ["預產正文。"], "content_status": "ready"})
+        return {"sections": sections, "total": total,
+                "issued": datetime.now(TPE), "prebuilt": True}
+    def test_load_today_missing_or_broken_returns_none(self):
+        import prebuilt
+        with patch("prebuilt.daily_path", return_value="/nonexistent/daily-x.json"):
+            self.assertIsNone(prebuilt.load_today())
+    def test_load_today_roundtrip_and_app_prefers_prebuilt(self):
+        import json as json_mod
+        import prebuilt
+        edition = self._edition()
+        with patch("prebuilt.daily_path") as p:
+            p.return_value = os.path.join(tempfile.mkdtemp(), "daily-test.json")
+            with open(p.return_value, "w", encoding="utf-8") as f:
+                json_mod.dump({"issued": edition["issued"].isoformat(),
+                               "total": edition["total"], "sections": edition["sections"]}, f, ensure_ascii=False)
+            loaded = prebuilt.load_today()
+            self.assertIsNotNone(loaded)
+            self.assertEqual(loaded["total"], edition["total"])
+            self.assertTrue(loaded["prebuilt"])
+            self.assertEqual(loaded["sections"][0]["items"][0]["title"], "預產測試")
+            from streamlit.testing.v1 import AppTest
+            with patch("news.collect", return_value=(loaded["sections"], loaded["total"])) as mock:
+                with patch("articles.enrich_sections", side_effect=lambda sections, **kw: sections):
+                    with patch("prebuilt.load_today", return_value=loaded):
+                        app = AppTest.from_file("../app.py").run(timeout=15)
+            self.assertEqual(len(app.exception), 0)
+            self.assertEqual(mock.call_count, 0)  # 預產檔存在：開啟不重抓
+            self.assertEqual(app.session_state["edition"]["total"], loaded["total"])
+            self.assertTrue(any("預產" in m.value for m in app.caption))
 
 if __name__ == "__main__":
     unittest.main()

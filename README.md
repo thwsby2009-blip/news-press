@@ -45,10 +45,13 @@ python -m unittest discover -s tests -v
 
 ```bash
 python build.py                    # 全部版組 → output/news-YYYY-M-D.pdf
+python build.py --json only        # 只產生當日預產 JSON（output/daily-民國Y-M-D.json）
 python build.py --html only        # 只產生 HTML 預覽
 python build.py --sections top,world,biz
 python build.py --out my-paper.pdf
 ```
+
+每日排程預產（搭配 cron 或工作排程器跑 `--json only`）：網頁開啟時會優先載入今日預產檔（`output/daily-*.json`），無檔或非當日才即時抓取；「更新本期」永遠即時。預產檔只保留最近 7 天。
 
 ## 版組對應 RSS
 

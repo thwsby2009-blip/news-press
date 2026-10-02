@@ -6,6 +6,7 @@ from news import SECTIONS, TPE, collect, roc_date, weekday_cn
 from render import build_html
 from ui import STYLE, masthead, reader_html, paginate_sections
 from articles import enrich_sections, fetch_article
+from prebuilt import load_today
 
 @st.cache_data(ttl=3600, max_entries=256, show_spinner=False)
 def cached_article(url):
@@ -42,9 +43,13 @@ with st.expander("訂製我的報紙 · 版組與篇數", expanded=False):
 action, info = st.columns([1, 4], vertical_alignment="center")
 refresh = action.button("更新本期 ↻", type="primary", use_container_width=True)
 info.caption("擷取公開報導文字 · 重新編排 · 在這裡直接閱讀")
-if refresh or not st.session_state.attempted:
+if refresh or (not st.session_state.attempted and st.session_state.edition is None):
     st.session_state.attempted = True
-    if not names:
+    prebuilt_today = load_today()
+    if prebuilt_today is not None and not refresh:
+        st.session_state.edition = prebuilt_today
+        st.caption(f"已載入今日預產報紙（{prebuilt_today['issued']:%H:%M} 產出）。按「更新本期 ↻」可取得最新報導。")
+    elif not names:
         st.warning("請至少選擇一個版組，再更新本期。")
     else:
         with st.spinner("正在取得新聞原文，整理正文並編排本期報紙…"):
