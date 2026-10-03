@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
-"""英文正文繁中翻譯：限制同時請求、只快取成功结果，保留失敗原因。"""
+"""英文正文繁中翻譯：限制同時請求、只快取成功结果，保留失敗原因。
+
+後端鏈：DeepL（st.secrets／env 有 key 時優先）→ Google gtx → MyMemory。
+雲端機房 IP 會被 gtx 擋（403）、MyMemory 匿名額度每日 5000 字，
+提供 email（de 參數）可升至 50,000 字／日。
+"""
 import json
 import logging
+import os
 import socket
 import urllib.error
 import urllib.parse
@@ -47,11 +53,47 @@ def _mymemory(text: str, tl: str) -> str:
     return translated.strip()
 
 
+@lru_cache(maxsize=1024)
+def _deepl(text: str, tl: str, key: str) -> str:
+    """正規後端：DeepL API free tier（每日 50 萬字），en→zh-TW 用 target_lang=ZH-TW。"""
+    host = "api-free.deepl.com" if key.endswith(":fx") else "api.deepl.com"
+    url = f"https://{host}/v2/translate"
+    body = urllib.parse.urlencode({"text": text, "target_lang": "ZH-TW"}).encode()
+    req = urllib.request.Request(url, data=body, headers={
+        "Authorization": f"DeepL-Auth-Key {key}",
+        "Content-Type": "application/x-www-form-urlencoded",
+    })
+    with _REQUEST_SLOTS:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.load(r)
+    translated = (data.get("translations") or [{}])[0].get("text") or ""
+    if not translated.strip():
+        raise ValueError("empty translation")
+    return translated.strip()
+
+
+def _deepl_key():
+    key = os.environ.get("DEEPL_API_KEY", "").strip()
+    if key:
+        return key
+    try:
+        import streamlit as st
+        key = str(st.secrets.get("DEEPL_API_KEY", "")).strip()
+        return key
+    except Exception:
+        return ""
+
+
 def _translate(text):
     text = (text or "").strip()
     if not text:
         return "", None
-    backends = ((_gtx, (text, "en", "zh-TW")), (_mymemory, (text, "zh-TW")))
+    key = _deepl_key()
+    backends = []
+    if key:
+        backends.append((_deepl, (text, "zh-TW", key)))
+    backends.append((_gtx, (text, "en", "zh-TW")))
+    backends.append((_mymemory, (text, "zh-TW")))
     last_code = "unavailable"
     for backend, args in backends:
         try:
@@ -63,8 +105,8 @@ def _translate(text):
             last_code = {403: "blocked", 429: "rate_limited"}.get(exc.code, "unavailable")
             # 不記錄帶有文章文字的查詢網址或回應正文。
             logging.warning("Translation request failed: HTTP %s (%s)", exc.code, last_code)
-            if last_code == "blocked":
-                continue  # gtx 拒絕存取：直接試備援後端
+            if last_code in ("blocked", "rate_limited") and backend is not backends[-1]:
+                continue  # 拒絕或限速：試下一個後端
         except (TimeoutError, socket.timeout):
             last_code = "timeout"
             logging.warning("Translation request failed: timeout")
