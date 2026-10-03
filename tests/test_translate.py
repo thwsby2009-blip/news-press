@@ -76,6 +76,30 @@ class TranslationRecovery(unittest.TestCase):
             self.assertEqual(translate.to_zh("A new paragraph"), "成功譯文")
             self.assertEqual(api.call_count, 1)
 
+    def test_nvidia_backend_translates_with_key(self):
+        translate._nvidia.cache_clear()
+        self.addCleanup(translate._nvidia.cache_clear)
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "nvapi-test"}), \
+             patch("news_translation.urllib.request.urlopen", side_effect=lambda *a, **k: io.BytesIO(json.dumps({
+                 "choices": [{"message": {"content": "NVIDIA 譯文"}}]}).encode())) as api:
+            value, error = translate._translate("A paragraph to translate")
+        self.assertIsNone(error)
+        self.assertEqual(value, "NVIDIA 譯文")
+        req = api.call_args[0][0]
+        body = json.loads(req.data)
+        self.assertEqual(body["model"], "nvidia/riva-translate-4b-instruct-v2")
+        self.assertEqual(body["messages"][0]["content"], "en-zh-tw")
+        self.assertEqual(req.headers["Authorization"], "Bearer nvapi-test")
+    def test_no_nvidia_key_falls_to_gtx(self):
+        translate._nvidia.cache_clear()
+        self.addCleanup(translate._nvidia.cache_clear)
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": ""}), \
+             patch("news_translation._deepl_key", return_value=""), \
+             patch("news_translation._gtx", return_value="gtx 譯文") as gtx:
+            value, error = translate._translate("A paragraph to translate")
+        self.assertIsNone(error)
+        self.assertEqual(value, "gtx 譯文")
+        gtx.assert_called_once()
     def test_gtx_blocked_falls_back_to_mymemory(self):
         translate._gtx.cache_clear()
         translate._mymemory.cache_clear()

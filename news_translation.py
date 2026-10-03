@@ -53,9 +53,47 @@ def _mymemory(text: str, tl: str) -> str:
     return translated.strip()
 
 
+_NVAPI_BASE = "https://integrate.api.nvidia.com/v1"
+_NVIDIA_MODEL = "nvidia/riva-translate-4b-instruct-v2"  # 37 語言、sentence/document 級
+
+
+@lru_cache(maxsize=1024)
+def _nvidia(text: str) -> str:
+    """最優先後端：NVIDIA NIM riva-translate-4b-instruct-v2（nvapi key，免費額度大、機房 IP 友善）。
+    key 來源：NVIDIA_API_KEY 環境變數或 Streamlit secrets。"""
+    key = os.environ.get("NVIDIA_API_KEY", "").strip()
+    if not key:
+        try:
+            import streamlit as st
+            key = str(st.secrets.get("NVIDIA_API_KEY", "")).strip()
+        except Exception:
+            key = ""
+    if not key:
+        raise ValueError("no nvidia key")
+    url = f"{_NVAPI_BASE}/chat/completions"
+    body = json.dumps({
+        "model": _NVIDIA_MODEL,
+        "messages": [
+            {"role": "system", "content": "en-zh-tw"},
+            {"role": "user", "content": text},
+        ],
+        "max_tokens": 512,
+    }).encode()
+    req = urllib.request.Request(url, data=body, headers={
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    })
+    with _REQUEST_SLOTS:
+        with urllib.request.urlopen(req, timeout=40) as r:
+            data = json.load(r)
+    translated = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+    if not translated.strip():
+        raise ValueError("empty translation")
+    return translated.strip()
+
+
 @lru_cache(maxsize=1024)
 def _deepl(text: str, tl: str, key: str) -> str:
-    """正規後端：DeepL API free tier（每日 50 萬字），en→zh-TW 用 target_lang=ZH-TW。"""
     host = "api-free.deepl.com" if key.endswith(":fx") else "api.deepl.com"
     url = f"https://{host}/v2/translate"
     body = urllib.parse.urlencode({"text": text, "target_lang": "ZH-TW"}).encode()
@@ -88,8 +126,8 @@ def _translate(text):
     text = (text or "").strip()
     if not text:
         return "", None
+    backends: list = [(_nvidia, (text,))]
     key = _deepl_key()
-    backends = []
     if key:
         backends.append((_deepl, (text, "zh-TW", key)))
     backends.append((_gtx, (text, "en", "zh-TW")))
