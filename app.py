@@ -7,7 +7,7 @@ from render import build_html
 from ui import STYLE, masthead, reader_html, paginate_sections
 from articles import enrich_sections, fetch_article
 from prebuilt import load_today
-from translate import translate_sections
+from translate import translate_sections, translation_summary, ERROR_LABELS
 
 @st.cache_data(ttl=3600, max_entries=256, show_spinner=False)
 def cached_article(url):
@@ -91,6 +91,17 @@ if edition:
         st.caption(f"已收錄 {ready} 篇正文；另有 {edition['total'] - ready} 篇暫時無法讀取，於版面標示原因。")
     if empty:
         st.warning(f"{'、'.join(empty)}版暫無新聞，其他版組仍可閱讀。可稍後更新重試。")
+    translations = translation_summary(sections)
+    if translations["missing"]:
+        reasons = "、".join(ERROR_LABELS.get(code, "翻譯服務暫時無法使用") for code in translations["errors"])
+        st.warning(f"有 {translations['missing']} 篇英文報導的中文註解尚未完整。"
+                   + (f"原因：{reasons}。" if reasons else "本期資料尚未包含完整譯文。")
+                   + "英文原文與已完成的譯文仍可閱讀。")
+        if st.button("重試缺少的中文註解"):
+            with st.spinner("正在補齊中文註解，保留已完成的譯文…"):
+                st.session_state.edition = {**edition, "sections": translate_sections(sections)}
+                st.session_state.pdf_bytes = None
+            st.rerun()
     options = ["全部"] + [s["name"] for s in sections]
     if st.session_state.get("category") not in options:
         st.session_state.category = "全部"
