@@ -7,7 +7,7 @@ from render import build_html
 from ui import STYLE, masthead, reader_html, paginate_sections
 from articles import enrich_sections, fetch_article
 from prebuilt import load_today
-from translate import translate_sections, translation_summary, ERROR_LABELS
+from news_translation import translate_sections, translation_summary, ERROR_LABELS
 
 @st.cache_data(ttl=3600, max_entries=256, show_spinner=False)
 def cached_article(url):
