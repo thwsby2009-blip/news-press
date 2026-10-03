@@ -44,21 +44,26 @@ class TranslationRecovery(unittest.TestCase):
     def test_rate_limit_is_visible_and_stops_article(self):
         item = {"title": "Title", "paragraphs": ["A", "B", "C"]}
         error = HTTPError("https://example.com", 429, "limited", {}, None)
-        with patch("news_translation._gtx", side_effect=error) as api:
+        with patch("news_translation._gtx", side_effect=error) as api, \
+             patch("news_translation._mymemory", side_effect=error) as mm:
             result = translate.translate_item(item)
         self.assertEqual(api.call_count, 1)
+        self.assertEqual(mm.call_count, 1)
         self.assertEqual(result["translation_errors"], ["rate_limited"])
         self.assertEqual(result["translation_status"], "unavailable")
 
     def test_empty_translation_is_not_cached(self):
         translate._gtx.cache_clear()
+        translate._mymemory.cache_clear()
         self.addCleanup(translate._gtx.cache_clear)
+        self.addCleanup(translate._mymemory.cache_clear)
         def response():
             return io.BytesIO(json.dumps([[[""]]]).encode())
         with patch("news_translation.urllib.request.urlopen", side_effect=lambda *a, **k: response()) as api:
+            # gtx 回空 → ValueError → 備援 MyMemory 也回空 → 兩後端各呼叫 2 次
             self.assertEqual(translate.to_zh("A new paragraph"), "")
             self.assertEqual(translate.to_zh("A new paragraph"), "")
-            self.assertEqual(api.call_count, 2)
+            self.assertEqual(api.call_count, 4)
 
     def test_prebuilt_without_translations_reports_missing(self):
         self.assertEqual(translate.translation_summary([{"id":"en_top", "items":[{"title":"A", "paragraphs":["B"]}]}])["missing"], 1)
@@ -71,6 +76,29 @@ class TranslationRecovery(unittest.TestCase):
             self.assertEqual(translate.to_zh("A new paragraph"), "成功譯文")
             self.assertEqual(api.call_count, 1)
 
+    def test_gtx_blocked_falls_back_to_mymemory(self):
+        translate._gtx.cache_clear()
+        translate._mymemory.cache_clear()
+        self.addCleanup(translate._gtx.cache_clear)
+        self.addCleanup(translate._mymemory.cache_clear)
+        blocked = HTTPError("https://translate.googleapis.com", 403, "forbidden", {}, None)
+        with patch("news_translation._gtx", side_effect=blocked), \
+             patch("news_translation._mymemory", return_value="備援譯文") as mm:
+            value, error = translate._translate("A paragraph to translate")
+        self.assertIsNone(error)
+        self.assertEqual(value, "備援譯文")
+        mm.assert_called_once_with("A paragraph to translate", "zh-TW")
+    def test_both_backends_failing_reports_reason(self):
+        translate._gtx.cache_clear()
+        translate._mymemory.cache_clear()
+        self.addCleanup(translate._gtx.cache_clear)
+        self.addCleanup(translate._mymemory.cache_clear)
+        blocked = HTTPError("https://translate.googleapis.com", 403, "forbidden", {}, None)
+        with patch("news_translation._gtx", side_effect=blocked), \
+             patch("news_translation._mymemory", side_effect=blocked):
+            value, error = translate._translate("A paragraph to translate")
+        self.assertEqual(value, "")
+        self.assertEqual(error, "blocked")
     def test_prebuilt_retry_updates_display_without_refetch(self):
         from datetime import datetime
         from news import TPE

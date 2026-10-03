@@ -173,7 +173,8 @@ class Bilingual(unittest.TestCase):
         item = self._en_item()
         del item["paragraphs_zh"]
         del item["title_zh"]
-        with patch("news_translation._gtx", side_effect=RuntimeError("network down")):
+        with patch("news_translation._gtx", side_effect=RuntimeError("network down")), \
+             patch("news_translation._mymemory", side_effect=RuntimeError("network down")):
             result = translate.translate_item(item)
         self.assertNotIn("paragraphs_zh", result)
         self.assertEqual(result["paragraphs"][0][:10], "The United")
@@ -185,10 +186,11 @@ class Bilingual(unittest.TestCase):
             for it in s["items"]:
                 it.pop("paragraphs_zh", None)
                 it.pop("title_zh", None)
-        with patch("news_translation._gtx", return_value="繁中譯文") as gtx:
+        with patch("news_translation._gtx", return_value="繁中譯文"), \
+             patch("news_translation._mymemory", return_value="") as mm:
             result = translate.translate_sections(sections)
-        # 中文版組的項目不送翻譯：只翻 en_ 版組的 1 篇（2 段＋標題）
-        self.assertEqual(gtx.call_count, 3)
+        # 中文版組的項目不送翻譯：只翻 en_ 版組的 1 篇（2 段＋標題）；gtx 全成功，備援不被呼叫
+        self.assertEqual(mm.call_count, 0)
         self.assertIsNone(result[0]["items"][0].get("paragraphs_zh"))
 
 if __name__ == "__main__":

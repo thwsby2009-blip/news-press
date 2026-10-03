@@ -31,32 +31,53 @@ def _gtx(text: str, sl: str, tl: str) -> str:
     return translated
 
 
+@lru_cache(maxsize=1024)
+def _mymemory(text: str, tl: str) -> str:
+    """備援後端：MyMemory API。Google gtx 會擋雲端機房 IP（403），MyMemory 官方供程式化使用。"""
+    url = ("https://api.mymemory.translated.net/get?"
+           + urllib.parse.urlencode({"q": text, "langpair": f"en|{tl}"}))
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with _REQUEST_SLOTS:
+        with urllib.request.urlopen(req, timeout=12) as r:
+            data = json.load(r)
+    translated = (data.get("responseData") or {}).get("translatedText") or ""
+    status = data.get("responseStatus")
+    if status not in (200, "200") or "MYMEMORY WARNING" in translated.upper() or not translated.strip():
+        raise ValueError("empty translation")
+    return translated.strip()
+
+
 def _translate(text):
     text = (text or "").strip()
     if not text:
         return "", None
-    try:
-        value = _gtx(text, "en", "zh-TW").strip()
-        if not value:
-            raise ValueError("empty translation")
-        return value, None
-    except urllib.error.HTTPError as exc:
-        code = {403: "blocked", 429: "rate_limited"}.get(exc.code, "unavailable")
-        # 不記錄帶有文章文字的查詢網址或回應正文。
-        logging.warning("Translation request failed: HTTP %s (%s)", exc.code, code)
-    except (TimeoutError, socket.timeout):
-        code = "timeout"
-        logging.warning("Translation request failed: timeout")
-    except urllib.error.URLError:
-        code = "network"
-        logging.warning("Translation request failed: connection error")
-    except (ValueError, TypeError, IndexError, KeyError):
-        code = "response"
-        logging.warning("Translation request failed: invalid response")
-    except Exception:
-        code = "unavailable"
-        logging.warning("Translation request failed: unavailable")
-    return "", code
+    backends = ((_gtx, (text, "en", "zh-TW")), (_mymemory, (text, "zh-TW")))
+    last_code = "unavailable"
+    for backend, args in backends:
+        try:
+            value = backend(*args).strip()
+            if not value:
+                raise ValueError("empty translation")
+            return value, None
+        except urllib.error.HTTPError as exc:
+            last_code = {403: "blocked", 429: "rate_limited"}.get(exc.code, "unavailable")
+            # 不記錄帶有文章文字的查詢網址或回應正文。
+            logging.warning("Translation request failed: HTTP %s (%s)", exc.code, last_code)
+            if last_code == "blocked":
+                continue  # gtx 拒絕存取：直接試備援後端
+        except (TimeoutError, socket.timeout):
+            last_code = "timeout"
+            logging.warning("Translation request failed: timeout")
+        except urllib.error.URLError:
+            last_code = "network"
+            logging.warning("Translation request failed: connection error")
+        except (ValueError, TypeError, IndexError, KeyError):
+            last_code = "response"
+            logging.warning("Translation request failed: invalid response")
+        except Exception:
+            last_code = "unavailable"
+            logging.warning("Translation request failed: unavailable")
+    return "", last_code
 
 
 def to_zh(text: str) -> str:
