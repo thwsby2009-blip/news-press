@@ -110,6 +110,7 @@ if edition:
         query = st.text_input("搜尋本期", placeholder="搜尋標題、來源或內文…", key="query", on_change=reset_page)
         large = st.toggle("放大字級")
         bilingual = st.toggle("英文雙語（繁中對照）", value=True)
+        continuous = st.toggle("連續閱讀（整版不停，像報紙往下捲）", value=False)
         make_pdf = st.button("匯出本期 PDF ↓")
     if make_pdf and st.session_state.pdf_bytes is None:
         with st.spinner("正在製作適合列印的報紙…"):
@@ -129,16 +130,20 @@ if edition:
         st.caption(f"顯示 {shown} 則 · {category}")
         st.button("清除閱讀篩選", on_click=clear_filters)
     if shown:
-        pages = paginate_sections(filtered)
-        st.session_state.paper_page = min(st.session_state.paper_page, len(pages) - 1)
-        page = st.session_state.paper_page
-        previous, position, following = st.columns([1, 2, 1], vertical_alignment="center")
-        previous.button("← 上一版", disabled=page == 0, on_click=turn_page, args=(-1,), use_container_width=True)
-        position.markdown(f'<div style="text-align:center;font-size:14px">{pages[page]["name"]}版　·　第 {page + 1} / {len(pages)} 版</div>', unsafe_allow_html=True)
-        following.button("下一版 →", disabled=page == len(pages) - 1, on_click=turn_page, args=(1,), use_container_width=True)
-        st.markdown(reader_html([pages[page]], large=large, bilingual=bilingual), unsafe_allow_html=True)
-        st.caption(f"第 {page + 1} 版完 · 每篇保留擷取到的全部正文段落")
-        st.button("繼續讀下一版 →", disabled=page == len(pages) - 1, on_click=turn_page, args=(1,))
+        if continuous:
+            st.markdown(reader_html(filtered, large=large, bilingual=bilingual), unsafe_allow_html=True)
+            st.caption(f"本期 {shown} 則完 · 連續閱讀 · 每篇保留擷取到的全部正文段落")
+        else:
+            pages = paginate_sections(filtered)
+            st.session_state.paper_page = min(st.session_state.paper_page, len(pages) - 1)
+            page = st.session_state.paper_page
+            previous, position, following = st.columns([1, 2, 1], vertical_alignment="center")
+            previous.button("← 上一版", disabled=page == 0, on_click=turn_page, args=(-1,), use_container_width=True)
+            position.markdown(f'<div style="text-align:center;font-size:14px">{pages[page]["name"]}版　·　第 {page + 1} / {len(pages)} 版</div>', unsafe_allow_html=True)
+            following.button("下一版 →", disabled=page == len(pages) - 1, on_click=turn_page, args=(1,), use_container_width=True)
+            st.markdown(reader_html([pages[page]], large=large, bilingual=bilingual), unsafe_allow_html=True)
+            st.caption(f"第 {page + 1} 版完 · 每篇保留擷取到的全部正文段落")
+            st.button("繼續讀下一版 →", disabled=page == len(pages) - 1, on_click=turn_page, args=(1,))
     else:
         st.info("沒有符合條件的新聞。試試其他關鍵字，或清除閱讀篩選。")
 else:

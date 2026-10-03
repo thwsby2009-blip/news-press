@@ -100,6 +100,19 @@ class AppFlows(unittest.TestCase):
         self.assertTrue(self.app.error)
         self.assertFalse(self.app.exception)
         self.assertTrue(any('<main class="reader newspaper' in m.value for m in self.app.markdown))
+    def test_continuous_mode_renders_all_sections_without_paging(self):
+        from streamlit.testing.v1 import AppTest
+        app = AppTest.from_file("../app.py").run()
+        self.assertEqual(len(app.exception), 0)
+        # toggle 順序：[0]放大字級、[1]英文雙語、[2]連續閱讀
+        app.toggle[2].set_value(True).run()
+        self.assertFalse(app.exception)
+        reader = next(m.value for m in app.markdown if '<main class="reader' in m.value)
+        self.assertIn("頭條新聞", reader)
+        self.assertIn("科技新聞", reader)
+        # 連續模式沒有翻版鈕
+        self.assertFalse(any("上一版" in b.label for b in app.button))
+        self.assertEqual(app.session_state["edition"]["total"], 20)
     def test_turn_pages_and_search_body(self):
         self.button("下一版 →").click().run()
         self.assertEqual(self.app.session_state["paper_page"], 1)

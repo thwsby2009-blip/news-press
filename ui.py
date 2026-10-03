@@ -52,7 +52,8 @@ def paginate_sections(sections, per_page=2):
     return pages
 
 
-def reader_html(sections, large=False, bilingual=False):
+def reader_html(sections, large=False, bilingual=False, full_page=False):
+    """full_page=True：整個版組連續排版（傳統報紙式，不逐頁翻）；False：單頁內容。"""
     parts = [f'<main class="reader newspaper {"large-type" if large else ""}">']
     for section in sections:
         if not section["items"]:
